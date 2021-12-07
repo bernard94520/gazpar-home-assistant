@@ -19,8 +19,12 @@ DEFAULT_SCAN_INTERVAL = timedelta(hours=4)
 
 CONF_PCE = 'pce'
 
+# Sensors
 HA_INDEX_ENERGY_M3 = 'Gazpar m3'
 HA_INDEX_ENERGY_KWH = 'Gazpar kwh'
+
+# Attributes
+ATTR_JOURNEE_GAZIERE = 'Journee gaziere'
 
 # Config
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
@@ -61,8 +65,8 @@ class GazparAccount:
         call_later(hass, 5, self.update_gazpar_data)
 
         # Add sensors
-        self.sensors.append(GazparSensor(HA_INDEX_ENERGY_KWH, ENERGY_KILO_WATT_HOUR))
-        self.sensors.append(GazparSensor(HA_INDEX_ENERGY_M3, VOLUME_CUBIC_METERS))
+        self.sensors.append(GazparSensor(HA_INDEX_ENERGY_KWH, ENERGY_KILO_WATT_HOUR, DEVICE_CLASS_ENERGY))
+        self.sensors.append(GazparSensor(HA_INDEX_ENERGY_M3, VOLUME_CUBIC_METERS, DEVICE_CLASS_GAS))
 
         track_time_interval(hass, self.update_gazpar_data, DEFAULT_SCAN_INTERVAL)
 
@@ -79,6 +83,7 @@ class GazparAccount:
             for sensor in self.sensors:
                 if sensor.name == HA_INDEX_ENERGY_M3:
                     sensor.set_data(index_m3)
+                    sensor.set_attributes(journeeGaziere)
                 if sensor.name == HA_INDEX_ENERGY_KWH:
                     sensor.set_data(index_kwh)
 
@@ -96,13 +101,15 @@ class GazparAccount:
 class GazparSensor(SensorEntity):
     """Representation of a sensor entity for Gazpar."""
 
-    def __init__(self, name, unit):
+    def __init__(self, name, unit, device_class):
         """Initialize the sensor."""
         self._name = name
         self._unit = unit
         self._measure = None
         self._attr_state_class = STATE_CLASS_TOTAL_INCREASING
-        self._attr_device_class = DEVICE_CLASS_ENERGY
+        self._attr_device_class = device_class
+        self._extra_state_attributes = {}
+
 
     @property
     def name(self):
@@ -124,6 +131,20 @@ class GazparSensor(SensorEntity):
         """Return the icon of the sensor."""
         return 'mdi:fire'
 
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes of the device."""
+        return self._extra_state_attributes
+
     def set_data(self, measure):
         """Update sensor data"""
         self._measure = measure
+
+    def set_attributes(self, attr):
+        """Return the state attributes of the last update."""
+        attrs = {}
+
+        if self._measure is not None:
+            attrs[ATTR_JOURNEE_GAZIERE] = attr
+            self._extra_state_attributes = attrs
+
